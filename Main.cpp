@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <ctype.h>
 #include <fstream>
 
 
@@ -21,18 +22,41 @@ LPVOID GameModule = 0, FakeGameModule = 0, CRC_1Back = 0;
 
 SOCKET sg = 0;
 
+void hexdump(void* ptr, int buflen, bool send) {
+	unsigned char* buf = (unsigned char*)ptr;
+	int i = 0, j = 0;
+	printf(send ? "Type : Send (L:%i)\n" : "Type : Recv (L:%i)\n", buflen);
+	for (i = 0; i < buflen; i += 16) {
+		printf_s("%06x: ", i);
+		for (j = 0; j < 16; j++)
+			if (i + j < buflen)
+				printf_s("%02x ", buf[i + j]);
+			else
+				printf_s("   ");
+		printf_s(" ");
+		for (j = 0; j < 16; j++)
+			if (i + j < buflen)
+				printf_s("%c", isprint(buf[i + j]) ? buf[i + j] : '.');
+		printf_s("\n");
+	}
+}
+
 DWORD WINAPI SendFunc(
 	SOCKET     s,
-	const char* buf,
+	char* buf,
 	int        len,
 	int        flags)
 {
 	typedef DWORD(WINAPI * p_Send)(SOCKET s, char* buf, int len, int flags);
 	p_Send o_Send = reinterpret_cast<p_Send>(fake_Variable_Send);
-	if (buf && len > 6 && buf[0] == 0x04 && buf[1] == 0x02)
-		return o_Send(s, const_cast<char*>(buf), len, flags);
+	__asm pushad
+	hexdump(reinterpret_cast<void*>(buf), len,true);
+	__asm popad
+	/*if (buf && len > 6 && buf[0] == 0x04 && buf[1] == 0x02 ||
+		buf && len >= 3 && buf[0] == 0x63 && buf[1] == 0x03)
+		return o_Send(s, const_cast<char*>(buf), len, flags);*/
 	sg = s;
-	return send(s, buf, len, flags);
+	return o_Send(s, const_cast<char*>(buf), len, flags);
 }
 
 DWORD WINAPI RecvFunc(
@@ -41,9 +65,11 @@ DWORD WINAPI RecvFunc(
 	int        len,
 	int        flags)
 {
+
 	typedef DWORD(WINAPI * p_Recv)(SOCKET s, char* buf, int len, int flags);
 	p_Recv o_Recv = reinterpret_cast<p_Recv>(fake_Variable_Recv);
-	return o_Recv(s, buf, len, flags);
+	DWORD res = o_Recv(s, buf, len, flags);
+	return res;
 }
 
 BOOL __fastcall  LoadFile(void* T, void* EDX, char* a1, DWORD a2, DWORD a3, DWORD a4)
@@ -133,7 +159,9 @@ __declspec(naked) void CRC_Hook1()
 
 bool Hook_FindFirstFileW(bool detourStatus);
 bool Hook_OpenProcess(bool detourStatus);
+bool Hook_CreateFileA(bool detourStatus);
 bool Hook_CRC(bool detourStatus);
+
 
 bool PrepareBypass()
 {
@@ -184,6 +212,7 @@ bool PrepareBypass()
 	memcpy(RtlUnhandledExceptionFilter2_Bytes, RtlUnhandledExceptionFilter2_Addy, 8);
 
 	Hook_FindFirstFileW(true);
+	Hook_CreateFileA(true);
 	Hook_OpenProcess(true);
 
 	char DllPath[MAX_PATH];
@@ -299,14 +328,16 @@ bool PrepareBypass()
 			Sleep(100);
 		memcpy(RtlUnhandledExceptionFilter2_Addy, RtlUnhandledExceptionFilter2_Bytes, 8);
 
-
+		FILE *f = 0;
+		AllocConsole();
+		freopen_s(&f, "CONOUT$", "w", stdout);
 		while (true)
 		{
 			Sleep(120);
 			if (*reinterpret_cast<DWORD*>(reinterpret_cast<DWORD>(Gepard_Module) + 0x715A0) != (reinterpret_cast<DWORD>(GameModule) + 0x1000))
 				* reinterpret_cast<DWORD*>(reinterpret_cast<DWORD>(Gepard_Module) + 0x715A0) = reinterpret_cast<DWORD>(GameModule) + 0x1000;
 			*reinterpret_cast<DWORD*>(0x00400A04) = reinterpret_cast<DWORD>(SendFunc);
-			*reinterpret_cast<DWORD*>(0x00400A00) = reinterpret_cast<DWORD>(RecvFunc);
+			//*reinterpret_cast<DWORD*>(0x00400A00) = reinterpret_cast<DWORD>(RecvFunc);
 			*reinterpret_cast<DWORD*>(0x00400A10) = reinterpret_cast<DWORD>(LoadFile);
 		}
 		return 1;
@@ -401,6 +432,47 @@ bool Hook_OpenProcess(bool detourStatus)
 	if (DetourTransactionBegin() != NO_ERROR ||
 		DetourUpdateThread(GetCurrentThread()) != NO_ERROR ||
 		(detourStatus ? DetourAttach : DetourDetach)(&(PVOID&)o_OpenProcess, OpenProcess_Hook) != NO_ERROR ||
+		DetourTransactionCommit() != NO_ERROR)
+		return false;
+	return true;
+}
+
+bool Hook_CreateFileA(bool detourStatus)
+{
+	typedef HANDLE(WINAPI * p_CreateFileA)(LPCSTR                lpFileName,
+		DWORD                 dwDesiredAccess,
+		DWORD                 dwShareMode,
+		LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+		DWORD                 dwCreationDisposition,
+		DWORD                 dwFlagsAndAttributes,
+		HANDLE                hTemplateFile);
+	static p_CreateFileA o_CreateFileA = reinterpret_cast<p_CreateFileA>(GetProcAddress(GetModuleHandle("Kernel32.dll"), "CreateFileA"));
+
+	p_CreateFileA CreateFileA_Hook = [](LPCSTR                lpFileName,
+		DWORD                 dwDesiredAccess,
+		DWORD                 dwShareMode,
+		LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+		DWORD                 dwCreationDisposition,
+		DWORD                 dwFlagsAndAttributes,
+		HANDLE                hTemplateFile)->HANDLE
+	{
+		DWORD_PTR dwStartAddress = 0;
+		HMODULE hModule = 0;
+		DWORD Old = 0;
+		NTSTATUS Status = -1;
+		if (NT_SUCCESS(NtQueryInformationThread(GetCurrentThread(), static_cast<THREADINFOCLASS>(9), &dwStartAddress, sizeof(DWORD_PTR), NULL)) &&
+			GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<char*>(dwStartAddress), &hModule) && hModule == Gepard_Module ||
+			GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<char*>(_ReturnAddress()), &hModule) && hModule == Gepard_Module)
+		{
+			if(lpFileName && strstr(lpFileName,"크리에이터_남"))
+			MessageBoxA(0,lpFileName,lpFileName,0);
+		}
+		return o_CreateFileA(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+	};
+
+	if (DetourTransactionBegin() != NO_ERROR ||
+		DetourUpdateThread(GetCurrentThread()) != NO_ERROR ||
+		(detourStatus ? DetourAttach : DetourDetach)(&(PVOID&)o_CreateFileA, CreateFileA_Hook) != NO_ERROR ||
 		DetourTransactionCommit() != NO_ERROR)
 		return false;
 	return true;

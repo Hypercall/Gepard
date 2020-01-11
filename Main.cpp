@@ -15,6 +15,11 @@
 #pragma comment(lib,"ntdll")
 #pragma comment(lib, "Ws2_32.lib")
 
+bool Hook_FindFirstFileW(bool detourStatus);
+bool Hook_OpenProcess(bool detourStatus);
+bool Hook_CreateFileA(bool detourStatus);
+bool Hook_CRC(bool detourStatus);
+
 HMODULE Gepard_Module = 0;
 DWORD fake_Variable_Send = 0, fake_Variable_Recv = 0;
 BYTE LdrLoadDll_Bytes[5], LoadLibW_Bytes[5], LoadLibA_Bytes[5], KiUserExceptionDispatcher_Bytes[8], DbgUiRemoteBreakin_Bytes[5], RtlUnhandledExceptionFilter2_Bytes[8];
@@ -155,13 +160,6 @@ __declspec(naked) void CRC_Hook1()
 
 	}
 }
-
-
-bool Hook_FindFirstFileW(bool detourStatus);
-bool Hook_OpenProcess(bool detourStatus);
-bool Hook_CreateFileA(bool detourStatus);
-bool Hook_CRC(bool detourStatus);
-
 
 bool PrepareBypass()
 {
@@ -464,7 +462,7 @@ bool Hook_CreateFileA(bool detourStatus)
 			GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<char*>(dwStartAddress), &hModule) && hModule == Gepard_Module ||
 			GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<char*>(_ReturnAddress()), &hModule) && hModule == Gepard_Module)
 		{
-			if(lpFileName && strstr(lpFileName,"≈©∏Æø°¿Ã≈Õ_≥≤"))
+			if(lpFileName && strstr(lpFileName,"√Ö¬©¬∏¬Æ¬ø¬°√Ä√å√Ö√ç_¬≥¬≤"))
 			MessageBoxA(0,lpFileName,lpFileName,0);
 		}
 		return o_CreateFileA(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);

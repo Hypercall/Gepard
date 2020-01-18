@@ -10,7 +10,7 @@
 
 ## The Gepard anti-cheat
 
-The gepard anti-cheat is made of one dll which hooks windows api's and blocks loading of dlls through a TLS callback. The special feature of this anti-cheat was the additional packet encryption for game developers.
+The gepard anti-cheat is made of one dll which hooks windows APIs and blocks loading of dlls through a TLS callback. The special feature of this anti-cheat was the additional packet encryption for game developers.
 
 ## The bypass
 

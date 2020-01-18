@@ -14,7 +14,7 @@ The gepard anti-cheat is made of one dll which hooks windows api's and blocks lo
 
 ## The bypass
 
-In order to break through the anti-cheat, the various hooks are getting removed and the TLS callback gets nopped.The send-recv packets are displayed through a extra allocated console.
+In order to break through the anti-cheat, the various hooks are getting removed and the TLS callback gets nopped. The send-recv packets are displayed through a extra allocated console.
 
 ## Compiling
 

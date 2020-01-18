@@ -6,7 +6,7 @@
   <br>
 </h1>
 
-<h4 align="center">A bypass to get rid of Gepard</h4>
+<h4 align="center">A way to get rid of Gepard</h4>
 
 ## The Gepard anti-cheat
 

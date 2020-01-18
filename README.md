@@ -22,7 +22,7 @@ To compile the bypass you need [Visual Studio](https://www.visualstudio.com).
 
 ## License
 
-*Conquer_Bypass* is licensed under MIT, which means you can freely distribute and/or modify the source of *Conquer_Bypass*.
+*Gepard* is licensed under MIT, which means you can freely distribute and/or modify the source of *Gepard*.
 
 
 
